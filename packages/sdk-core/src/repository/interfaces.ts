@@ -36,9 +36,10 @@ import type {
  * const params: CreateHypercertParams = {
  *   title: "Community Garden Project",
  *   description: "Established a 1-acre community garden serving 50 families",
- *   workScope: "Food Security",
- *   workTimeframeFrom: "2024-01-01",
- *   workTimeframeTo: "2024-06-30",
+ *   shortDescription: "1-acre community garden project",
+ *   workScope: { withinAllOf: ["Food Security"] },
+ *   startDate: "2024-01-01",
+ *   endDate: "2024-06-30",
  *   rights: {
  *     name: "Attribution",
  *     type: "license",
@@ -53,9 +54,9 @@ import type {
  *   title: "Reforestation Initiative",
  *   description: "Planted 10,000 trees in deforested areas",
  *   shortDescription: "10K trees planted",
- *   workScope: "Environmental Restoration",
- *   workTimeframeFrom: "2024-01-01",
- *   workTimeframeTo: "2024-12-31",
+ *   workScope: { withinAllOf: ["Environmental Restoration"] },
+ *   startDate: "2024-01-01",
+ *   endDate: "2024-12-31",
  *   rights: {
  *     name: "Open Impact",
  *     type: "impact-rights",
@@ -63,7 +64,10 @@ import type {
  *   },
  *   image: coverImageBlob,
  *   location: {
- *     value: "Amazon Rainforest, Brazil",
+ *     lpVersion: "1.0.0",
+ *     srs: "EPSG:4326",
+ *     locationType: "coordinate-decimal",
+ *     location: "https://locationuri.com",
  *     name: "Amazon Basin",
  *     description: "Southern Amazon region",
  *   },
@@ -81,7 +85,8 @@ import type {
  *   ],
  *   evidence: [
  *     {
- *       uri: "https://example.com/satellite-data",
+ *       content: "https://example.com/satellite-data",
+ *       title: "Satellite Imagery",
  *       description: "Satellite imagery showing reforestation progress",
  *     },
  *   ],
@@ -175,38 +180,7 @@ export interface CreateHypercertParams {
   /**
    * Optional geographic location of the impact.
    */
-  location?: {
-    /**
-     * Location value/address.
-     *
-     * @example "San Francisco, CA, USA"
-     */
-    value: string;
-
-    /**
-     * Human-readable location name.
-     *
-     * @example "SF Bay Area"
-     */
-    name?: string;
-
-    /**
-     * Description of the location scope.
-     */
-    description?: string;
-
-    /**
-     * Spatial Reference System identifier (required if location is provided).
-     *
-     * @example "EPSG:4326" for WGS84
-     */
-    srs: string;
-
-    /**
-     * GeoJSON file as a Blob for precise boundaries.
-     */
-    geojson?: Blob;
-  };
+  location?: AttachLocationParams;
 
   /**
    * Optional list of contributions to the impact.
@@ -306,6 +280,50 @@ export interface CreateHypercertEvidenceParams {
    * Any additional custom fields supported by the record.
    */
   [k: string]: unknown;
+}
+
+/**
+ * Parameters for attaching a location to a hypercert.
+ *
+ * @example Using a string location
+ * ```typescript
+ * const params: AttachLocationParams = {
+ *   lpVersion: "1.0.0",
+ *   srs: "EPSG:4326",
+ *   locationType: "coordinate-decimal",
+ *   location: "https://locationuri.com",
+ *   name: "San Francisco",
+ *   description: "Project location in SF Bay Area",
+ * };
+ * ```
+ *
+ * @example Using a GeoJSON Blob
+ * ```typescript
+ * const geojsonBlob = new Blob(
+ *   [JSON.stringify({ type: "Point", coordinates: [-122.4194, 37.7749] })],
+ *   { type: "application/geo+json" }
+ * );
+ * const params: AttachLocationParams = {
+ *   lpVersion: "1.0.0",
+ *   srs: "EPSG:4326",
+ *   locationType: "geojson-point",
+ *   location: geojsonBlob,
+ * };
+ * ```
+ */
+export interface AttachLocationParams {
+  /** The version of the Location Protocol */
+  lpVersion: string;
+  /** The Spatial Reference System URI (e.g., http://www.opengis.net/def/crs/OGC/1.3/CRS84) that defines the coordinate system. */
+  srs: string;
+  /** An identifier for the format of the location data (e.g., coordinate-decimal, geojson-point) */
+  locationType: "coordinate-decimal" | "geojson-point" | (string & {});
+  /** Location data as either a URL string or a GeoJSON Blob */
+  location: string | Blob;
+  /** Optional name for this location */
+  name?: string;
+  /** Optional description for this location */
+  description?: string;
 }
 
 /**
@@ -661,9 +679,10 @@ export interface HypercertEvents {
  * const result = await repo.hypercerts.create({
  *   title: "Impact Project",
  *   description: "Description...",
- *   workScope: "Climate",
- *   workTimeframeFrom: "2024-01-01",
- *   workTimeframeTo: "2024-12-31",
+ *   shortDescription: "Short description...",
+ *   workScope: { withinAllOf: ["Climate"] },
+ *   startDate: "2024-01-01",
+ *   endDate: "2024-12-31",
  *   rights: { name: "CC-BY", type: "license", description: "..." },
  * });
  *
@@ -743,16 +762,7 @@ export interface HypercertOperations extends EventEmitter<HypercertEvents> {
    * @param location.geojson - Optional GeoJSON blob for precise boundaries
    * @returns Promise resolving to location record result
    */
-  attachLocation(
-    uri: string,
-    location: {
-      value: string;
-      name?: string;
-      description?: string;
-      srs: string;
-      geojson?: Blob;
-    },
-  ): Promise<CreateResult>;
+  attachLocation(uri: string, location: AttachLocationParams): Promise<CreateResult>;
 
   /**
    * Adds evidence to an existing hypercert.
