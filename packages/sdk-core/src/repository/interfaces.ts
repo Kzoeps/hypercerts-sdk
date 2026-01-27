@@ -21,6 +21,7 @@ import type {
   UpdateCollectionParams,
   UpdateProjectParams,
   CreateMeasurementParams,
+  CreateAttachmentParams,
   StrongRef,
 } from "../services/hypercerts/types.js";
 import type {
@@ -145,7 +146,7 @@ export type ResolvedContributorIdentity = string | { uri: string; cid: string; $
  * Parameters for creating a new hypercert.
  *
  * This interface defines all the data needed to create a hypercert
- * along with optional related records (location, contributions, evidence).
+ * along with optional related records (location, contributions, attachments).
  *
  * @example Minimal hypercert
  * ```typescript
@@ -198,9 +199,10 @@ export type ResolvedContributorIdentity = string | { uri: string; cid: string; $
  *       description: "On-ground planting and monitoring",
  *     },
  *   ],
- *   evidence: [
+ *   attachments: [
  *     {
- *       uri: "https://example.com/satellite-data",
+ *       content: "https://example.com/satellite-data",
+ *       title: "Reforestation Progress",
  *       description: "Satellite imagery showing reforestation progress",
  *     },
  *   ],
@@ -378,9 +380,9 @@ export interface CreateHypercertParams {
   }>;
 
   /**
-   * Optional evidence supporting the impact claim.
+   * Optional attachments supporting or refuting the impact claim.
    */
-  evidence?: Array<Omit<CreateHypercertEvidenceParams, "subjectUri">>;
+  attachments?: Array<Omit<CreateAttachmentParams, "subjects">>;
 
   /**
    * Optional callback for progress updates during creation.
@@ -406,51 +408,6 @@ export interface CreateOrganizationParams {
    * Optional description of the organization
    */
   description?: string;
-}
-/**
- * Input params for creating Hypercert evidence.
- *
- * Based on `org.hypercerts.claim.evidence` but:
- * - removes: $type, createdAt, subject, content
- * - adds: subjectUri, content (string | Blob)
- */
-export interface CreateHypercertEvidenceParams {
-  /**
-   * URI for the subject this evidence is attached to.
-   */
-  subjectUri: string;
-
-  /**
-   * Evidence content.
-   * - string: should be a URI.
-   * - Blob: binary payload (e.g. image/pdf)
-   */
-  content: string | Blob;
-
-  /**
-   * Title to describe the nature of the evidence.
-   */
-  title: string;
-
-  /**
-   * Short description explaining what this evidence shows.
-   */
-  shortDescription?: string;
-
-  /**
-   * Longer description describing the evidence in more detail.
-   */
-  description?: string;
-
-  /**
-   * How this evidence relates to the subject.
-   */
-  relationType?: "supports" | "challenges" | "clarifies" | (string & {});
-
-  /**
-   * Any additional custom fields supported by the record.
-   */
-  [k: string]: unknown;
 }
 
 /**
@@ -495,9 +452,9 @@ export interface CreateHypercertResult {
   contributionUris?: string[];
 
   /**
-   * AT-URIs of evidence records, if evidence was provided.
+   * AT-URIs of attachment records, if attachments were provided.
    */
-  evidenceUris?: string[];
+  attachmentUris?: string[];
 }
 
 // ============================================================================
@@ -791,9 +748,9 @@ export interface HypercertEvents {
   contributorCreated: { uri: string; cid: string };
 
   /**
-   * Emitted when evidence is added to a hypercert.
+   * Emitted when an attachment is added to a subject.
    */
-  evidenceAdded: { uri: string; cid: string };
+  attachmentAdded: { uri: string; cid: string };
 
   /**
    * Emitted when a collection is created.
@@ -942,12 +899,43 @@ export interface HypercertOperations extends EventEmitter<HypercertEvents> {
   attachLocation(uri: string, location: LocationParams): Promise<CreateResult>;
 
   /**
-   * Adds evidence to an existing hypercert.
+   * Adds an attachment to any subject record.
    *
-   * @param evidence - Evidence item to add
-   * @returns Promise resolving to update result
+   * Attachments provide commentary, context, evidence, or documentary material
+   * related to hypercert records. Renamed from `addEvidence` in beta.13.
+   *
+   * @param attachment - Attachment parameters (see {@link CreateAttachmentParams})
+   * @returns Promise resolving to attachment record URI and CID
+   * @throws {@link ValidationError} if validation fails
+   * @throws {@link NetworkError} if the operation fails
+   *
+   * @example Single subject with URI content
+   * ```typescript
+   * await repo.hypercerts.addAttachment({
+   *   subjects: "at://did:plc:abc/org.hypercerts.claim.activity/xyz",
+   *   content: "https://example.com/report.pdf",
+   *   title: "Impact Report",
+   *   contentType: "report"
+   * });
+   * ```
+   *
+   * @example Multiple subjects with mixed content
+   * ```typescript
+   * await repo.hypercerts.addAttachment({
+   *   subjects: [
+   *     "at://did:plc:abc/org.hypercerts.claim.activity/xyz",
+   *     "at://did:plc:abc/org.hypercerts.claim.activity/def"
+   *   ],
+   *   content: [
+   *     "https://example.com/report.pdf",
+   *     new Blob(["data"], { type: "application/pdf" })
+   *   ],
+   *   title: "Multi-source Evidence",
+   *   location: { uri: "at://...", cid: "..." }
+   * });
+   * ```
    */
-  addEvidence(evidence: CreateHypercertEvidenceParams): Promise<UpdateResult>;
+  addAttachment(attachment: CreateAttachmentParams): Promise<UpdateResult>;
 
   /**
    * Creates a contribution record.
