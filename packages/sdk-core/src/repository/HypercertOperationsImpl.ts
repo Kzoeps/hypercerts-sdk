@@ -159,10 +159,7 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
    * @throws {@link NetworkError} if upload fails
    * @internal
    */
-  private async uploadImageBlob(
-    image: Blob,
-    onProgress?: (step: ProgressStep) => void,
-  ): Promise<JsonBlobRef | undefined> {
+  private async uploadImageBlob(image: Blob, onProgress?: (step: ProgressStep) => void) {
     this.emitProgress(onProgress, { name: "uploadImage", status: "start" });
     try {
       const uploadResult = await this.blobs.upload(image);
@@ -171,7 +168,7 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
         status: "success",
         data: { size: image.size },
       });
-      return this.blobToJsonRef(uploadResult);
+      return uploadResult;
     } catch (error) {
       this.emitProgress(onProgress, { name: "uploadImage", status: "error", error: error as Error });
       throw new NetworkError(`Failed to upload image: ${error instanceof Error ? error.message : "Unknown"}`, error);
@@ -250,7 +247,7 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
     params: CreateHypercertParams,
     rightsUri: string,
     rightsCid: string,
-    imageBlobRef: JsonBlobRef | undefined,
+    imageBlobRef: BlobRef | undefined,
     locationRefs: Array<{ uri: string; cid: string }> | undefined,
     contributorsData:
       | Array<{
@@ -314,15 +311,10 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
       throw new ValidationError(`Invalid hypercert record: ${hypercertValidation.error?.message}`);
     }
 
-    // JsonBlobRef can have ref (CID object) or cid (string in existing record)
-    // Image: extract CID string from blob ref (stable content hash)
+    // if its a blob ref guarateed to have ref and a .toString method
     let imageRef: string | undefined;
     if (imageBlobRef) {
-      if ("ref" in imageBlobRef && imageBlobRef.ref) {
-        imageRef = typeof imageBlobRef.ref === "string" ? imageBlobRef.ref : imageBlobRef.ref.toString();
-      } else if ("cid" in imageBlobRef) {
-        imageRef = imageBlobRef.cid;
-      }
+      imageRef = imageBlobRef.ref.toString();
     }
 
     // Generate rKey from stable content hash (idempotency)
@@ -705,7 +697,7 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
           // Remove image
         } else {
           const uploadResult = await this.blobs.upload(params.image);
-          recordForUpdate.image = this.blobToJsonRef(uploadResult);
+          recordForUpdate.image = uploadResult;
         }
       } else if (existingRecord.image) {
         // Preserve existing image
@@ -1430,7 +1422,7 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
         };
 
         // Handle image upload if it's a Blob
-        let imageRef: JsonBlobRef | string | undefined;
+        let imageRef: BlobRef | string | undefined;
         if (image instanceof Blob) {
           const uploadResult = await this.uploadImageBlob(image, onProgress);
           imageRef = uploadResult;
@@ -1573,7 +1565,7 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
   async addContributorInformation(params: {
     identifier: string;
     displayName?: string;
-    image?: JsonBlobRef | string;
+    image?: BlobRef | string;
     [key: string]: unknown;
   }): Promise<CreateResult> {
     try {
