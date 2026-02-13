@@ -76,9 +76,10 @@ describe("HypercertOperationsImpl", () => {
       expect(mockAgent.com.atproto.repo.createRecord).toHaveBeenCalledTimes(2);
     });
 
-    it("should upload image and include in hypercert", async () => {
+    it("should upload image and include in hypercert with correct wrapper", async () => {
       const imageBlob = new Blob(["image data"], { type: "image/png" });
-      mockBlobs.upload.mockResolvedValue(createMockBlobRef());
+      const mockBlobRef = createMockBlobRef({ mimeType: "image/png", size: 1024 });
+      mockBlobs.upload.mockResolvedValue(mockBlobRef);
 
       await hypercertOps.create({
         ...validParams,
@@ -86,6 +87,15 @@ describe("HypercertOperationsImpl", () => {
       });
 
       expect(mockBlobs.upload).toHaveBeenCalledWith(imageBlob);
+
+      // Verify the hypercert record (second createRecord call)
+      const hypercertCall = mockAgent.com.atproto.repo.createRecord.mock.calls[1][0];
+      expect(hypercertCall.record.image).toEqual({
+        $type: "org.hypercerts.defs#smallImage",
+        image: mockBlobRef,
+      });
+      expect(hypercertCall.record.image.$type).toBe("org.hypercerts.defs#smallImage");
+      expect(hypercertCall.record.image.image).toBeInstanceOf(BlobRef);
     });
 
     it("should include shortDescription when provided", async () => {
@@ -861,9 +871,10 @@ describe("HypercertOperationsImpl", () => {
       expect(putCall.record.rights).toEqual({ uri: "at://rights", cid: "rights-cid" });
     });
 
-    it("should upload new image", async () => {
+    it("should upload new image with correct wrapper", async () => {
       const imageBlob = new Blob(["new image"], { type: "image/png" });
-      mockBlobs.upload.mockResolvedValue(createMockBlobRef());
+      const mockBlobRef = createMockBlobRef({ mimeType: "image/png", size: 2048 });
+      mockBlobs.upload.mockResolvedValue(mockBlobRef);
 
       await hypercertOps.update({
         uri: "at://did:plc:test/org.hypercerts.claim.record/abc123",
@@ -872,6 +883,15 @@ describe("HypercertOperationsImpl", () => {
       });
 
       expect(mockBlobs.upload).toHaveBeenCalledWith(imageBlob);
+
+      // Verify the putRecord call
+      const putCall = mockAgent.com.atproto.repo.putRecord.mock.calls[0][0];
+      expect(putCall.record.image).toEqual({
+        $type: "org.hypercerts.defs#smallImage",
+        image: mockBlobRef,
+      });
+      expect(putCall.record.image.$type).toBe("org.hypercerts.defs#smallImage");
+      expect(putCall.record.image.image).toBeInstanceOf(BlobRef);
     });
 
     it("should remove image when set to null", async () => {

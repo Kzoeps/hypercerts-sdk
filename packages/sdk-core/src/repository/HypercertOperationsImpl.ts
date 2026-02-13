@@ -273,7 +273,10 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
     };
 
     if (imageBlobRef) {
-      hypercertRecord.image = imageBlobRef;
+      hypercertRecord.image = {
+        $type: "org.hypercerts.defs#smallImage",
+        image: imageBlobRef,
+      };
     }
 
     // Add locations as embedded StrongRefs if provided
@@ -697,7 +700,10 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
           // Remove image
         } else {
           const uploadResult = await this.blobs.upload(params.image);
-          recordForUpdate.image = uploadResult;
+          recordForUpdate.image = {
+            $type: "org.hypercerts.defs#smallImage",
+            image: uploadResult,
+          };
         }
       } else if (existingRecord.image) {
         // Preserve existing image
@@ -952,10 +958,9 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
     }
 
     const uploadResult = await this.blobs.upload(content);
-    const jsonBlobRef = this.blobToJsonRef(uploadResult);
     return {
       $type: "org.hypercerts.defs#smallBlob" as const,
-      blob: jsonBlobRef,
+      blob: uploadResult,
     };
   }
 
@@ -970,12 +975,11 @@ export class HypercertOperationsImpl extends EventEmitter<HypercertEvents> imple
     }
 
     const uploadResult = await this.blobs.upload(input);
-    const jsonBlobRef = this.blobToJsonRef(uploadResult);
     if (isBanner) {
-      return { $type: "org.hypercerts.defs#largeImage" as const, image: jsonBlobRef };
+      return { $type: "org.hypercerts.defs#largeImage" as const, image: uploadResult };
     }
 
-    return { $type: "org.hypercerts.defs#smallImage" as const, image: jsonBlobRef };
+    return { $type: "org.hypercerts.defs#smallImage" as const, image: uploadResult };
   }
 
   /**
